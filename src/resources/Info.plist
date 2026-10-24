@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleIdentifier</key><string>local.tclremote.menubar</string>
+    <key>CFBundleName</key><string>CouchKeys</string>
+    <key>CFBundleDisplayName</key><string>CouchKeys</string>
+    <key>CFBundleExecutable</key><string>CouchKeys</string>
+    <key>CFBundlePackageType</key><string>APPL</string>
+    <key>CFBundleShortVersionString</key><string>1.0</string>
+    <key>CFBundleVersion</key><string>1</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>LSMinimumSystemVersion</key><string>14.0</string>
+    <key>LSUIElement</key><true/>
+    <key>NSHighResolutionCapable</key><true/>
+    <key>NSPrincipalClass</key><string>NSApplication</string>
+    <key>NSLocalNetworkUsageDescription</key><string>Connect to your selected TCL Roku TV to control sound, picture settings, inputs and apps.</string>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <key>NSAllowsLocalNetworking</key><true/>
+    </dict>
+    <key>NSHumanReadableCopyright</key><string>CouchKeys — local TCL Roku remote. Menu-bar design inspired by LGwebOS-menubar (MIT); see bundled reference license.</string>
+</dict>
+</plist>
