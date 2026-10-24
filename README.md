@@ -4,6 +4,57 @@ A macOS menu-bar remote for a TCL Roku TV, with laptop-keyboard text entry for N
 
 CouchKeys connects directly to the TV over your local network. The native app runs without a browser, Python server, or open Terminal window. An optional web interface provides remote controls and a Safari/AirPlay workflow.
 
+## Quick start: run on your Mac
+
+Use **macOS 14 or later** and **Swift 6 or later**. The native app does **not** need Python or a running web server.
+
+### 1. Install the Mac build tools once
+
+If you do not already have Apple's Command Line Tools or Xcode, run:
+
+```sh
+xcode-select --install
+```
+
+Finish the macOS installer, then check the compiler:
+
+```sh
+/usr/bin/swift --version
+```
+
+It must report Swift **6.0 or newer**. If it reports an older version, update Xcode or the Command Line Tools before continuing. If Swift 6+ is already installed, skip the installation step.
+
+### 2. Get the code
+
+This repository is private, so your GitHub account needs access. With the [GitHub CLI](https://cli.github.com/) installed:
+
+```sh
+gh auth login
+gh repo clone NikhithVasa/couchkeys
+cd couchkeys
+```
+
+Already authenticated? Skip `gh auth login`. Alternatively, sign in to GitHub in your browser, select **Code → Download ZIP**, extract it, and open Terminal in the extracted project folder. You do not need the GitHub CLI for the ZIP option.
+
+### 3. Check the TV, build, and open
+
+Turn on the TV and connect the Mac and TV to the same local network. On the TV, enable **Settings → System → Advanced system settings → Control by mobile apps → Network access → Enabled**.
+
+The source is preconfigured for the existing TV, not automatic discovery. If you are using a different TV or its IP address changed, follow [TV configuration](#tv-configuration) **before building**.
+
+From the project folder, run:
+
+```sh
+bash build.sh
+open "$HOME/Applications/CouchKeys.app"
+```
+
+### 4. Use the app
+
+Allow **Local Network** access if macOS asks. Click the **TV icon in the menu bar** to open CouchKeys; a Desktop shortcut is also created. You can close Terminal after launching the native app.
+
+For keyboard search, open **Search in Netflix on the TV** first, then type into CouchKeys' **Keyboard** field and press **Return** or **Send**.
+
 ## What it does
 
 - **Keyboard input:** type a search on your Mac and send it to the TV, with separate Backspace and Enter controls.
@@ -33,16 +84,19 @@ For the native app:
 - On the TV, enable **Settings → System → Advanced system settings → Control by mobile apps → Network access → Enabled**.
 - Allow Local Network access on the Mac if prompted.
 
-For the optional web interface, also install Python 3 and the dependencies in `requirements.txt`. Safari/AirPlay browsing requires AirPlay enabled on the TV; automatic receiver selection also depends on macOS Accessibility permission for the process running the server.
+For the optional web interface, also install Python **3.9 or later** and the dependencies in `requirements.txt`. Safari/AirPlay browsing requires AirPlay enabled on the TV; automatic receiver selection also depends on macOS Accessibility permission for the process running the server.
 
-## Build and install
+## Update an existing checkout
 
-From the project directory:
+Quit CouchKeys using **Remote options → Quit CouchKeys** before replacing the installed app. From a Git checkout, pull the latest code, rebuild, and reopen:
 
 ```sh
+git pull --ff-only
 bash build.sh
 open "$HOME/Applications/CouchKeys.app"
 ```
+
+If you downloaded a ZIP instead, download and extract the latest ZIP and run the build/open commands from that folder without `git pull`. Keep any local TV-configuration changes before updating. To rebuild only, skip `git pull`.
 
 The installer builds the release executable, generates the app icon, packages and ad-hoc signs `CouchKeys.app`, verifies its signature, and installs it in `~/Applications`. It also creates a Desktop shortcut unless an unrelated item already occupies that name.
 
@@ -84,11 +138,11 @@ Power changes are spaced by 10 seconds because immediate reverse commands were i
 
 **Send Wake packet** sends a network wake packet; it does not prove that the screen turned on. Wait, refresh, and use **Turn TV on** if necessary. Standby wake depends on the TV's power and network settings.
 
-Fast TV Start was previously enabled for the configured TV. Its original and enabled-state records are kept in `device-backups/`. This setting increases standby power; installing CouchKeys does not itself change it.
+Fast TV Start was previously enabled for the configured TV. Its original and enabled-state records remain in the original machine's `device-backups/` folder, which is ignored by Git and not included in a clone or ZIP. Those records are not required to run the app. This setting increases standby power; installing CouchKeys does not itself change it.
 
 ## Optional web interface
 
-From the project directory:
+Use this only if you want browser-based controls; it is not needed for the native app. With **Python 3.9+** installed, run these commands from the project folder:
 
 ```sh
 python3 -m venv .venv
@@ -96,7 +150,9 @@ python3 -m venv .venv
 .venv/bin/python src/web/server.py --open
 ```
 
-The server listens on `http://127.0.0.1:8765`. On this Mac, the Desktop launcher is named **CouchKeys Web.command**. Keep its Terminal process running while using the web interface; press **Control-C** there to stop it.
+The `--open` flag opens the local page in your browser. Its address is **http://127.0.0.1:8765**. Keep this Terminal process running while using the web interface; press **Control-C** there to stop it. To start it again, run only `.venv/bin/python src/web/server.py --open`; you do not need to recreate the environment or reinstall dependencies each time.
+
+If port 8765 is used by a different app, run `.venv/bin/python src/web/server.py --port 8766 --open` and use **http://127.0.0.1:8766**. A running CouchKeys server for the same TV can be reused by `--open`.
 
 The web interface provides TV navigation, sound, app/input launching, picture controls, power, and wake. Laptop-to-TV search text entry is in the **native app**, not the web interface.
 
@@ -108,9 +164,36 @@ This is Safari running on the Mac, not a browser installed on Roku. Use the Mac'
 
 ## TV configuration
 
-Native connection settings are in `src/native/Models.swift`, in `TVTarget.configured`: host, serial number, display name, Wi-Fi MAC address, and broadcast address. Rebuild and reinstall after changing them.
+The checkout contains settings for one existing TCL Roku TV. Another Mac on the same network can use those settings if the TV's address is unchanged. A different TV must be configured explicitly; there is no first-launch device picker.
 
-The web server's target defaults and device identity are in `src/web/server.py`. Its `--tv`, `--broadcast`, and `--port` options override network addresses, not the serial-number identity check. If the TV's IP changes, update the native target and use `.venv/bin/python src/web/server.py --tv NEW_IP --open` for the web server. Do not disable identity verification to work around a connection problem.
+Find the TV's IP address under **Settings → Network → About** and its serial number under **Settings → System → About**. To inspect the configured TV from your Mac, replace the address below if necessary:
+
+```sh
+TV_IP=10.0.0.128
+curl --noproxy '*' --connect-timeout 3 --max-time 5 "http://${TV_IP}:8060/query/device-info"
+```
+
+The response includes `serial-number`, `wifi-mac`, vendor, power mode, and mobile-app network-control state. Use `serial-number`, not `device-id` or `udn`.
+
+For the **native app**, edit `TVTarget.configured` in `src/native/Models.swift`:
+
+| Field | Value |
+| --- | --- |
+| `host` | The TV's literal IPv4 address, without `http://` or a port. |
+| `serial` | The TV's exact serial number. |
+| `name` | Your preferred display label. |
+| `wifiMAC` | The TV's six Wi-Fi MAC bytes; used for network wake. |
+| `broadcast` | Your network's broadcast address; used for network wake. |
+
+Quit the app, then rerun `bash build.sh` and `open "$HOME/Applications/CouchKeys.app"` after changing these values.
+
+For the **web interface**, set `SERIAL` and `WIFI_MAC` near the top of `src/web/server.py` for a different TV. `WIFI_MAC` is the Wi-Fi MAC as 12 hexadecimal digits without separators. Pass addresses on startup:
+
+```sh
+.venv/bin/python src/web/server.py --tv 10.0.0.128 --broadcast 10.0.0.255 --open
+```
+
+Replace those addresses with your TV and network values. `--tv`, `--broadcast`, and `--port` override network addresses, **not** the serial-number identity check. Stop and restart the server after editing its configuration. Both interfaces verify the TCL vendor and configured serial number; do not disable that check to work around a connection problem.
 
 ## Troubleshooting
 
@@ -139,10 +222,10 @@ src/
 Package.swift         Native executable package definition
 build.sh              Release build and local app installer
 requirements.txt      Pinned Python dependency
-device-backups/       Existing TV configuration records
+device-backups/       Optional local TV records; not tracked in Git
 ```
 
-All app implementation lives under `src/`. Run the commands above from the project root. Generated builds and preserved pre-restructure caches are under `.build/`; the local Python environment remains in `.venv/`. Device backups are data, not source, and stay separate.
+All app implementation lives under `src/`. Run the commands above from the project root. Generated builds use `.build/`, and the local Python environment uses `.venv/`. Those generated folders and any local device backups are ignored by Git; a fresh checkout creates the required build/environment files when you follow the setup commands.
 
 ## Safety and attribution
 
