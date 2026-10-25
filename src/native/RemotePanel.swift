@@ -61,6 +61,8 @@ struct RemotePanel: View {
     let onQuit: () -> Void
     @State private var showDirections = false
     @FocusState private var keyboardFocused: Bool
+    @State private var showDeveloperConfirmation = false
+    @State private var developerModeRequested = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -76,6 +78,7 @@ struct RemotePanel: View {
                     appMenus
                     navigation
                     directionalControls
+                    developerMode
                 }
                 .padding(.horizontal, 18)
                 .padding(.bottom, 18)
@@ -91,6 +94,55 @@ struct RemotePanel: View {
         .font(.system(size: 12))
         .tint(RemotePalette.accent)
         .preferredColorScheme(.dark)
+        .confirmationDialog(developerModeRequested ? "Enable Roku developer mode?" : "Disable Roku developer mode?", isPresented: $showDeveloperConfirmation, titleVisibility: .visible) {
+            Button("Open settings on TV") { store.requestDeveloperModeChange(to: developerModeRequested) }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This leaves the current TV app and can interrupt AirPlay. Finish the change on the TV; Roku will restart when you confirm it. CouchKeys does not accept terms, set a password, or confirm the restart for you. The switch changes only after the TV reports the new state.")
+        }
+    }
+
+    private var developerMode: some View {
+        RemoteCard {
+            VStack(alignment: .leading, spacing: 9) {
+                if let enabled = store.snapshot?.developerEnabled {
+                    Toggle(isOn: Binding(get: { enabled }, set: {
+                        developerModeRequested = $0
+                        showDeveloperConfirmation = true
+                    })) {
+                        Label("Developer mode", systemImage: "curlybraces")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .toggleStyle(.switch)
+                    .disabled(!store.canControl || store.pendingDeveloperMode != nil)
+                    .accessibilityLabel("Roku developer mode")
+                    .accessibilityValue(store.lastReadFailed ? "Last known \(enabled ? "on" : "off")" : (enabled ? "On" : "Off"))
+                    Text(store.lastReadFailed ? "Cached mode; refresh before changing it." : "Verified TV state. Changing it requires on-TV confirmation and a restart. This is not USB/ADB debugging.")
+                        .font(.system(size: 10)).foregroundStyle(RemotePalette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    HStack {
+                        Label("Developer mode", systemImage: "curlybraces").font(.system(size: 13, weight: .semibold))
+                        Spacer()
+                        Text("Unknown").foregroundStyle(RemotePalette.secondary)
+                    }
+                    Text(store.snapshot?.unavailableReasons["developer_mode"] ?? "Refresh to read the TV’s developer-mode status.")
+                        .font(.system(size: 10)).foregroundStyle(RemotePalette.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if let requested = store.pendingDeveloperMode {
+                    Text(requested ? "On the TV: enable the installer, accept Roku’s terms, set a password, and allow restart. Keep the password on the TV. Reopen or refresh CouchKeys after the TV returns." : "On the TV: choose Disable installer and restart, then confirm. Reopen or refresh CouchKeys after the TV returns to verify Off.")
+                        .font(.system(size: 11)).foregroundStyle(RemotePalette.warm)
+                        .fixedSize(horizontal: false, vertical: true)
+                    Button { store.stopWaitingForDeveloperMode() } label: {
+                        Text("Stop waiting").font(.system(size: 11)).frame(maxWidth: .infinity).frame(height: 28)
+                    }
+                        .buttonStyle(RemoteButtonStyle())
+                        .disabled(store.isBusy)
+                        .help("Stops monitoring this request; it does not change anything on the TV.")
+                }
+            }
+        }
     }
 
     private var header: some View {

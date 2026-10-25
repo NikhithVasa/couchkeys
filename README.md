@@ -63,6 +63,7 @@ For keyboard search, open **Search in Netflix on the TV** first, then type into 
 - **Sound:** volume slider, volume buttons, and mute, with TV readback.
 - **Picture:** select modes and settings that the current TV input actually exposes. Available choices come from the TV, not a fixed list of assumed capabilities.
 - **Power:** explicit screen-on/off commands and a separate Wake-on-LAN action.
+- **Roku developer mode:** a verified-state switch that sends the TV's developer-settings sequence; changes require on-TV confirmation and restart.
 
 This is a single-TV setup, not a universal remote or an automatic device-discovery app. The current implementation verifies a configured TCL Roku TV by vendor and serial number before controlling it.
 
@@ -140,6 +141,21 @@ Power changes are spaced by 10 seconds because immediate reverse commands were i
 
 Fast TV Start was previously enabled for the configured TV. Its original and enabled-state records remain in the original machine's `device-backups/` folder, which is ignored by Git and not included in a clone or ZIP. Those records are not required to run the app. This setting increases standby power; installing CouchKeys does not itself change it.
 
+### Roku developer mode
+
+In the native Mac app, scroll below **Directional controls** to **Developer mode**. This is Roku's SDK/sideloading mode, **not Android USB/ADB debugging**. The switch reads `developer-enabled` from the verified TV; missing or invalid values are shown as **Unknown**, and cached state cannot be changed.
+
+1. Turn on the TV and refresh CouchKeys.
+2. Change the switch and confirm **Open settings on TV**. This leaves the current TV app and can interrupt AirPlay.
+3. To enable the mode, finish Roku's on-TV setup: enable the Development Application Installer, accept Roku's agreement, set a password on the TV, and allow the restart. To disable it, choose **Disable installer and restart** on the TV and confirm.
+4. After the TV returns, reopen or refresh CouchKeys. The switch changes only when the TV reports the requested state. While the panel is open, its existing periodic refresh also checks for the change.
+
+CouchKeys sends only Roku's documented sequence: **Home ×3 → Up ×2 → Right → Left → Right → Left → Right**. It does not automatically choose menu items, accept agreements, set the developer password, or confirm a restart. Sending the sequence is not itself proof that the mode changed; complete the on-TV steps. If navigation is interrupted, no keys are automatically replayed.
+
+**Stop waiting** cancels monitoring of the pending request, not the TV setting or on-TV setup. The requested mode remains separate from the verified current mode, including while the TV restarts. This control is native-app only; it is not in the optional web interface.
+
+See Roku's official [developer-mode setup guide](https://developer.roku.com/dev/docs/developer-setup). Developer tools can expose sideloading/debug services on your network; enable them only when needed.
+
 ## Optional web interface
 
 Use this only if you want browser-based controls; it is not needed for the native app. With **Python 3.9+** installed, run these commands from the project folder:
@@ -154,7 +170,7 @@ The `--open` flag opens the local page in your browser. Its address is **http://
 
 If port 8765 is used by a different app, run `.venv/bin/python src/web/server.py --port 8766 --open` and use **http://127.0.0.1:8766**. A running CouchKeys server for the same TV can be reused by `--open`.
 
-The web interface provides TV navigation, sound, app/input launching, picture controls, power, and wake. Laptop-to-TV search text entry is in the **native app**, not the web interface.
+The web interface provides TV navigation, sound, app/input launching, picture controls, power, and wake. Laptop-to-TV search text entry and the Roku developer-mode workflow are in the **native app**, not the web interface.
 
 ### Browse on the TV with AirPlay
 

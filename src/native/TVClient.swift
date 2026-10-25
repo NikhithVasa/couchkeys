@@ -9,6 +9,7 @@ actor TVClient {
         let model: String?
         let power: String?
         let networkControl: String?
+        let developerEnabled: Bool?
     }
 
     private struct AudioState: Sendable {
@@ -57,6 +58,8 @@ actor TVClient {
         session = URLSession(configuration: configuration, delegate: RokuNoRedirects(), delegateQueue: nil)
         powerQuietUntil = ContinuousClock.now
     }
+
+    private static let developerSettingsKeys: [RemoteKey] = [.home, .home, .home, .up, .up, .right, .left, .right, .left, .right]
 
     func snapshot() async throws -> TVSnapshot {
         try beginOperation()
@@ -110,6 +113,30 @@ actor TVClient {
             return result
         } catch {
             throw uncertain(error, context: "The remote key was sent, but its readback was not confirmed.")
+        }
+    }
+
+    func openDeveloperSettings(expectedEnabled: Bool) async throws -> TVSnapshot {
+        try beginOperation()
+        defer { busy = false }
+        try await waitForPowerQuiet()
+        let identity = try await requireControl(poweredOn: true)
+        guard identity.developerEnabled == expectedEnabled else {
+            throw TVFailure.message("Developer-mode state changed or is unavailable. Refresh; no navigation was sent.")
+        }
+        var accepted = 0
+        do {
+            for key in Self.developerSettingsKeys {
+                try Task.checkCancellation()
+                try await httpPost(path: "keypress/\(key.rawValue)")
+                accepted += 1
+                if accepted < Self.developerSettingsKeys.count {
+                    try await Task.sleep(for: .milliseconds(150))
+                }
+            }
+            return try await buildSnapshot(refreshCatalog: false)
+        } catch {
+            throw uncertain(error, context: "Developer-settings navigation stopped after \(accepted) of \(Self.developerSettingsKeys.count) keys. Check the TV before retrying.")
         }
     }
 
@@ -399,10 +426,16 @@ actor TVClient {
             catalog = nil
             throw TVFailure.message("The device at \(target.host) is not the selected TCL (serial \(target.serial)). Controls are blocked.")
         }
+        let developerEnabled: Bool?
+        switch root.value("developer-enabled") {
+        case "true": developerEnabled = true
+        case "false": developerEnabled = false
+        default: developerEnabled = nil
+        }
         return DeviceIdentity(name: root.value("friendly-device-name"),
                               model: root.value("model-name") ?? root.value("model-number"),
                               power: root.value("power-mode"),
-                              networkControl: root.value("ecp-setting-mode"))
+                              networkControl: root.value("ecp-setting-mode"), developerEnabled: developerEnabled)
     }
 
     private func readAudio(deadline: ContinuousClock.Instant? = nil) async throws -> AudioState {
@@ -535,6 +568,9 @@ actor TVClient {
         let identity: DeviceIdentity
         if let knownIdentity { identity = knownIdentity } else { identity = try await readIdentity() }
         var unavailable: [String: String] = [:]
+        if identity.developerEnabled == nil {
+            unavailable["developer_mode"] = "The TV did not expose a valid developer-mode state. No mode change can be requested."
+        }
         let active: TVApp?
         do {
             active = try await readActiveApp()
@@ -591,6 +627,7 @@ actor TVClient {
         }
         return TVSnapshot(name: identity.name ?? target.name, model: identity.model,
                           host: target.host, power: identity.power, networkControl: identity.networkControl,
+                          developerEnabled: identity.developerEnabled,
                           volume: audio.volume, muted: audio.muted, activeApp: active, apps: apps,
                           picture: picture, unavailableReasons: unavailable, observedAt: Date())
     }

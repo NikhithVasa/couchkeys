@@ -14,6 +14,7 @@ final class RemoteStore: ObservableObject {
     @Published private(set) var volumeDraft = 0.0
     @Published private(set) var isVolumeEditing = false
     @Published var keyboardDraft = ""
+    @Published private(set) var pendingDeveloperMode: Bool?
 
     private let client: TVClient
     private var isVisible = false
@@ -107,6 +108,31 @@ final class RemoteStore: ObservableObject {
     func launch(_ app: TVApp) {
         guard canControl, snapshot?.apps.contains(where: { $0.id == app.id }) == true else { return }
         perform("Opening \(app.title) · waiting for TV readback…") { try await $0.launch(appID: app.id) }
+    }
+
+    func requestDeveloperModeChange(to enabled: Bool) {
+        guard canControl, pendingDeveloperMode == nil, let current = snapshot?.developerEnabled, current != enabled else { return }
+        cancelVolumeDraft()
+        beginOperation("Sending Roku developer-settings sequence…")
+        pendingDeveloperMode = enabled
+        mutationTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await self.client.openDeveloperSettings(expectedEnabled: current)
+                guard !Task.isCancelled else { return }
+                self.accept(result)
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.pendingDeveloperMode = nil
+                self.lastReadFailed = true
+                self.errorText = error.localizedDescription
+            }
+            self.endOperation()
+        }
+    }
+
+    func stopWaitingForDeveloperMode() {
+        pendingDeveloperMode = nil
     }
 
     func setPicture(name: String, value: String) {
@@ -214,6 +240,11 @@ final class RemoteStore: ObservableObject {
     private func accept(_ result: TVSnapshot) {
         snapshot = result
         lastReadFailed = false
+        if let requested = pendingDeveloperMode, result.developerEnabled == requested {
+            pendingDeveloperMode = nil
+            errorText = nil
+            notice = "Roku developer mode \(requested ? "on" : "off") · confirmed by the TV."
+        }
         if !isVolumeEditing, !hasVolumeDraft, let volume = result.volume {
             volumeDraft = Double(volume)
         }
@@ -229,7 +260,7 @@ final class RemoteStore: ObservableObject {
                 let result = try await operation(self.client)
                 guard !Task.isCancelled else { return }
                 self.accept(result)
-                self.notice = successNotice
+                if let successNotice { self.notice = successNotice }
             } catch {
                 guard !Task.isCancelled else { return }
                 self.lastReadFailed = true

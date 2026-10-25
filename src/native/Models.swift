@@ -62,6 +62,7 @@ struct TVSnapshot: Equatable, Sendable {
     let host: String
     let power: String?
     let networkControl: String?
+    let developerEnabled: Bool?
     let volume: Int?
     let muted: Bool?
     let activeApp: TVApp?
